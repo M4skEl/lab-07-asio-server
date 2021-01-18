@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <header.hpp>
@@ -50,7 +51,7 @@ std::string get_all_users() {
 
 void accept_threads() {
   tcp::acceptor acceptor(service, tcp::endpoint(tcp::v4(), 8001));
-  while (/*true*/ 0) {
+  while (true) {
     BOOST_LOG_TRIVIAL(info)
         << "start logging \n Thread id: " << std::this_thread::get_id() << "\n";
     auto new_client = std::make_shared<Talk_to_client>();
@@ -66,7 +67,7 @@ void accept_threads() {
 }
 
 void handle_clients_thread() {
-  //while (/*true*/ 0) {
+  while (true) {
     boost::this_thread::sleep(boost::posix_time::millisec(1));
     boost::recursive_mutex::scoped_lock lk(mtx);
     for (auto& client : clients) {
@@ -74,17 +75,26 @@ void handle_clients_thread() {
       client->socket().read_some(boost::asio::buffer(request, 100));
       if (request == "client list") {
         client->answer_to_client(get_all_users());
-        BOOST_LOG_TRIVIAL(info)<<"Answer to client username: "<<client->user_name()<<"/n";
-      }
-      else if(request=="ping"){
+        BOOST_LOG_TRIVIAL(info)
+            << "Answer to client username: " << client->user_name() << "/n";
+      } else if (request == "ping") {
         client->answer_to_client("Ping OK");
-        BOOST_LOG_TRIVIAL(info)<<"Answer to client username: "<<client->user_name()<<"/n";
+        BOOST_LOG_TRIVIAL(info)
+            << "Answer to client username: " << client->user_name() << "/n";
       }
-      clients.erase(std::remove_if)
-
-
     }
-  //}
+    clients.erase(std::remove_if(clients.begin(), clients.end(),
+                                 [](std::shared_ptr<Talk_to_client> ptr) {
+                                   return ptr->time_is_over();
+                                 }),
+                  clients.end());
+  }
 }
 
-int main() {}
+int main() {
+  boost::thread_group threads;
+  threads.create_thread(accept_threads);
+  threads.create_thread(handle_clients_thread);
+  threads.join_all();
+  return 0;
+}
